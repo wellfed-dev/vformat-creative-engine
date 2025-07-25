@@ -68,47 +68,67 @@ const VFormatCreativeEngine = () => {
       alert("Please fill in at least one field to generate a brief.");
       return;
     }
-
+  
     setIsGenerating(true);
     const prompt = buildPrompt(formData);
-
+  
     try {
+      // Claude
       const claudeRes = await fetch('/.netlify/functions/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt })
       });
-
+  
       const claudeJson = await claudeRes.json();
-
-      let structured;
-      if (claudeJson?.response && typeof claudeJson.response === 'string') {
-        const cleaned = claudeJson.response.replace(/```json\n?|```/g, '').trim();
-        structured = JSON.parse(cleaned);
-      } else {
-        console.error("Claude response invalid or undefined:", claudeJson);
+  
+      if (!claudeJson?.response || typeof claudeJson.response !== 'string') {
+        console.error("Claude returned invalid response:", claudeJson);
         alert("Claude did not return usable content.");
         return;
       }
-
+  
+      const structured = JSON.parse(
+        claudeJson.response.replace(/```json\n?|```/g, '').trim()
+      );
+  
+      // GPT
       const gptRes = await fetch('/.netlify/functions/gpt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ structured })
       });
-
-      const gptJson = await gptRes.json();
-      const creativeBrief = JSON.parse(gptJson.response.replace(/```json\n?|```/g, '').trim());
-
+  
+      const gptRaw = await gptRes.text();
+  
+      let gptJson;
+      try {
+        gptJson = JSON.parse(gptRaw);
+      } catch (parseErr) {
+        console.error("Failed to parse GPT response:", gptRaw);
+        alert("GPT response could not be parsed.");
+        return;
+      }
+  
+      const responseText = gptJson?.response?.replace(/```json\n?|```/g, '').trim();
+  
+      if (!responseText) {
+        console.error("GPT response was empty or undefined:", gptJson);
+        alert("GPT returned an empty response.");
+        return;
+      }
+  
+      const creativeBrief = JSON.parse(responseText);
       setGeneratedBrief(creativeBrief);
+  
     } catch (err) {
-      console.error(err);
+      console.error("Error generating brief:", err);
       alert("Something went wrong generating your brief.");
     } finally {
       setIsGenerating(false);
     }
   };
-
+  
   const exportToPDF = () => {
     const content = document.querySelector('.space-y-8');
     html2pdf().from(content).save('Creative_Brief.pdf');
