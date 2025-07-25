@@ -118,9 +118,55 @@ Respond ONLY with a structured JSON object with these sections.`;
     html2pdf().from(content).save('Creative_Brief.pdf');
   };
 
-  // ... keep the rest of your existing app structure, including renderStep1, renderStep2, etc.
-  // Insert model selector into UI where needed:
-  // <select onChange={(e) => setModel(e.target.value)} value={model}>...</select>
+  const renderStep1 = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {Object.keys(formData).map((field) => (
+        <div key={field} className="flex flex-col">
+          <label className="text-sm font-semibold mb-1 capitalize">{field.replace(/([A-Z])/g, ' $1')}</label>
+          <input
+            type="text"
+            value={formData[field]}
+            onChange={(e) => handleInputChange(field, e.target.value)}
+            className="p-2 border rounded"
+          />
+        </div>
+      ))}
+      <button
+        onClick={generateCreativeBrief}
+        disabled={isGenerating}
+        className="col-span-full bg-black text-white py-2 px-4 rounded hover:bg-gray-800 mt-4"
+      >
+        {isGenerating ? 'Generating...' : 'Generate Creative Brief'}
+      </button>
+    </div>
+  );
+
+  const renderBriefOutput = () => (
+    <div className="bg-white p-4 border rounded shadow space-y-4">
+      <h2 className="text-2xl font-bold">Generated Brief</h2>
+      {generatedBrief && Object.entries(generatedBrief).map(([section, content]) => (
+        <div key={section}>
+          <h3 className="text-lg font-semibold uppercase">{section}</h3>
+          <pre className="whitespace-pre-wrap text-sm mt-1">{JSON.stringify(content, null, 2)}</pre>
+        </div>
+      ))}
+      <button onClick={exportToPDF} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Export to PDF</button>
+    </div>
+  );
+
+  return (
+    <div className="p-6 space-y-8">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">V-Format™ Creative Engine</h1>
+        <select onChange={(e) => setModel(e.target.value)} value={model} className="border p-2 rounded">
+          <option value="claude">Claude</option>
+          <option value="gpt">GPT</option>
+        </select>
+      </div>
+      {renderStep1()}
+      {generatedBrief && renderBriefOutput()}
+    </div>
+  );
 };
 
 export default VFormatCreativeEngine;
