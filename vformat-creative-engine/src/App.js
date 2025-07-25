@@ -73,7 +73,7 @@ const VFormatCreativeEngine = () => {
     const prompt = buildPrompt(formData);
 
     try {
-      const claudeRes = await fetch('/.netlify/functions/generatebrief', {
+      const claudeRes = await fetch('/.netlify/functions/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt })
