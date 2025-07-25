@@ -4,11 +4,14 @@
   publish = "build"
 
 [functions]
+  directory = "netlify/functions"
   node_bundler = "esbuild"
 
-[functions."*"]
-  node_version = "18"
+[functions."claude"]
+  included_files = ["netlify/functions/claude.js"]
 
+[functions."gpt"]
+  included_files = ["netlify/functions/gpt.js"]
 
 [[redirects]]
   from = "/*"

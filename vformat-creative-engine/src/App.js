@@ -81,6 +81,8 @@ const VFormatCreativeEngine = () => {
       });
   
       const claudeJson = await claudeRes.json();
+      console.log("Claude JSON response:", claudeJson);
+
   
       if (!claudeJson?.response || typeof claudeJson.response !== 'string') {
         console.error("Claude returned invalid response:", claudeJson);
@@ -111,7 +113,7 @@ const VFormatCreativeEngine = () => {
       }
   
       const responseText = gptJson?.response?.replace(/```json\n?|```/g, '').trim();
-  
+
       if (!responseText) {
         console.error("GPT response was empty or undefined:", gptJson);
         alert("GPT returned an empty response.");
@@ -119,6 +121,7 @@ const VFormatCreativeEngine = () => {
       }
   
       const creativeBrief = JSON.parse(responseText);
+      console.log("Final creativeBrief:", creativeBrief);
       setGeneratedBrief(creativeBrief);
   
     } catch (err) {
