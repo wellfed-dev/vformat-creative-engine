@@ -66,43 +66,48 @@ PRODUCTION:
 
 Respond ONLY with a structured JSON object with these sections.`;
 
-  const generateCreativeBrief = async () => {
-    setIsGenerating(true);
-    const prompt = buildPrompt(formData);
+const generateCreativeBrief = async () => {
+  setIsGenerating(true);
+  const prompt = buildPrompt(formData);
 
-    try {
-      const claudeRes = await fetch('/.netlify/functions/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
-      });
+  try {
+    // Step 1: Claude (structure generation)
+    const claudeRes = await fetch('/.netlify/functions/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
 
-if (claudeJson?.response && typeof claudeJson.response === 'string') {
-  const cleaned = claudeJson.response.replace(/```json\n?|```/g, '').trim();
-  structured = JSON.parse(cleaned);
-} else {
-  console.error("Claude response invalid or undefined:", claudeJson);
-  return;
-}
+    const claudeJson = await claudeRes.json(); // <-- ✅ This was missing
 
-      
-      const gptRes = await fetch('/.netlify/functions/gpt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ structured })
-      });
-
-      const gptJson = await gptRes.json();
-      const creativeBrief = JSON.parse(gptJson.response.replace(/```json\n?|```/g, '').trim());
-
-      setGeneratedBrief(creativeBrief);
-    } catch (err) {
-      console.error(err);
-      alert("Something went wrong generating your brief.");
-    } finally {
-      setIsGenerating(false);
+    let structured;
+    if (claudeJson?.response && typeof claudeJson.response === 'string') {
+      const cleaned = claudeJson.response.replace(/```json\n?|```/g, '').trim();
+      structured = JSON.parse(cleaned);
+    } else {
+      console.error("Claude response invalid or undefined:", claudeJson);
+      return;
     }
-  };
+
+    // Step 2: GPT (creative generation)
+    const gptRes = await fetch('/.netlify/functions/gpt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ structured })
+    });
+
+    const gptJson = await gptRes.json();
+    const creativeBrief = JSON.parse(gptJson.response.replace(/```json\n?|```/g, '').trim());
+
+    setGeneratedBrief(creativeBrief);
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong generating your brief.");
+  } finally {
+    setIsGenerating(false);
+  }
+};
+
 
   const exportToPDF = () => {
     const content = document.querySelector('.space-y-8');
