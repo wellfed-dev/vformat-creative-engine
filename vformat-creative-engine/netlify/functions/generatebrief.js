@@ -1,66 +1,79 @@
-// netlify/functions/generatebrief.js
 import fetch from 'node-fetch';
 
 export async function handler(event) {
-  try {
-    const { prompt } = JSON.parse(event.body);
+  const { trends } = JSON.parse(event.body);
 
-    // Step 1: Claude generates a structured data brief
+  if (!trends) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Missing trends input" }),
+    };
+  }
+
+  try {
+    // Step 2: Ask Claude for a structured data brief
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
         model: 'claude-3-sonnet-20240229',
-        max_tokens: 1500,
-        temperature: 0.7,
-        messages: [{ role: 'user', content: prompt }]
-      })
+        max_tokens: 1024,
+        temperature: 0.5,
+        messages: [{
+          role: 'user',
+          content: `Create a JSON data brief summarizing the following trends: ${trends}. Include platform performance, genre opportunity, and any standout behavior patterns.`,
+        }],
+      }),
     });
 
     const claudeJson = await claudeResponse.json();
-    const structuredBrief = JSON.parse(
-      claudeJson.content[0].text.replace(/```json|```/g, '').trim()
-    );
+    const structuredBrief = claudeJson?.content?.[0]?.text?.replace(/```json\n?|```/g, '').trim();
 
-    // Step 2: GPT uses Claude's output to generate a creative brief
-    const gptPrompt = `You are a creative strategist. Take this structured brief:
-${JSON.stringify(structuredBrief, null, 2)}
+    // Safety fallback
+    if (!structuredBrief) {
+      throw new Error("Claude response invalid.");
+    }
 
-Turn it into an emotionally engaging and strategic creative proposal. Write it section by section in clear, human language, suitable for pitching to a studio exec.`;
-
+    // Step 3: Ask GPT to generate creative using the structured brief
     const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: 'gpt-4',
-        messages: [{ role: 'user', content: gptPrompt }],
-        max_tokens: 1500,
-        temperature: 0.75
-      })
+        messages: [
+          { role: 'system', content: 'You are a creative strategist generating engaging vertical series pitches.' },
+          {
+            role: 'user',
+            content: `Based on the following data brief, write a creative concept for a short-form episodic series:\n\n${structuredBrief}`,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 800,
+      }),
     });
 
     const gptJson = await gptResponse.json();
-    const creativeText = gptJson.choices[0].message.content;
+    const creativeOutput = gptJson?.choices?.[0]?.message?.content;
 
     return {
       statusCode: 200,
       body: JSON.stringify({
-        structured: structuredBrief,
-        creative: creativeText
-      })
+        brief: structuredBrief,
+        creative: creativeOutput,
+      }),
     };
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error("Error in generatebrief function:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to generate brief' })
+      body: JSON.stringify({ error: error.message }),
     };
   }
 }
