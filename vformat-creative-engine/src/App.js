@@ -23,9 +23,14 @@ const VFormatCreativeEngine = () => {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [field]: field === 'platforms'
+        ? value.split(',').map(v => v.trim()) // convert back to array
+        : value
+    }));
   };
-
+  
   const handlePlatformToggle = (platform) => {
     setFormData(prev => ({
       ...prev,
