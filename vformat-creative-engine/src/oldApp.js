@@ -34,45 +34,45 @@ const VFormatCreativeEngine = () => {
     }));
   };
 
-  const buildPrompt = (formData) => {
-    const lines = [
-      "You are the V-Format™ Creative Engine. Use the data below to reverse-engineer a vertical storytelling hit. Only use the information provided — do not assume missing fields.",
-      "",
-      "Respond ONLY with a structured JSON object with the following sections:",
-      "1. OVERVIEW",
-      "2. STORYLINE",
-      "3. SERIES MAP",
-      "4. PERFORMANCE ARCHETYPES",
-      "5. TARGETING STRATEGY",
-      "6. MONETIZATION",
-      "7. MARKETING",
-      "8. PRODUCTION",
-      "9. IP SCORECARD",
-      "",
-      "INPUTS:"
-    ];
+  const buildPrompt = (formData) => `You are the V-Format™ Creative Engine. Use the data below to reverse-engineer a vertical storytelling hit. Create a creative brief structured into the following sections, with clear rationale and insight-backed decisions:
 
-    Object.entries(formData).forEach(([key, value]) => {
-      if (value && value.length > 0) {
-        const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-        const content = Array.isArray(value) ? value.join(', ') : value;
-        lines.push(`- ${label}: ${content}`);
-      }
-    });
+1. OVERVIEW: Logline, genre, tone, hook
+2. STORYLINE: Narrative world, conflict, emotional driver
+3. SERIES MAP: 10-episode arc, cliffhanger strategy, IP expansion path
+4. PERFORMANCE ARCHETYPES: Story mechanics and character arcs based on trending content
+5. TARGETING STRATEGY: Affinity demos, platform behavior, competitive whitespace
+6. MONETIZATION: Unlock points, merch potential, brand collab opportunities
+7. MARKETING: Viral triggers, shareable moments, audio/visual cues
+8. PRODUCTION: Timeline, cast, setting, budget tiering
+9. IP SCORECARD: Completion rate forecast, unlock rate, merchability, brand alignment, and greenlight rating
 
-    return lines.join('\n');
-  };
+TREND INPUTS:
+- Streaming Trends: ${formData.streamingTrends || 'Not specified'}
+- Social Trends: ${formData.socialTrends || 'Not specified'}
+- Viral Content: ${formData.viralContent || 'Not specified'}
+- Genre Performance: ${formData.genrePerformance || 'Not specified'}
+
+TARGET AUDIENCE:
+- Demographic: ${formData.primaryDemo || 'Not specified'}
+- Age Range: ${formData.ageRange || 'Not specified'}
+- Platforms: ${formData.platforms.join(', ') || 'Not specified'}
+- Interests: ${formData.interests || 'Not specified'}
+
+PRODUCTION:
+- Budget: ${formData.budget || 'Not specified'}
+- Timeline: ${formData.timeline || 'Not specified'}
+- Location: ${formData.location || 'Not specified'}
+- Cast Size: ${formData.castSize || 'Not specified'}
+
+Respond ONLY with a structured JSON object with these sections.`;
 
   const generateCreativeBrief = async () => {
-    if (Object.values(formData).every(val => !val || val.length === 0)) {
-      alert("Please fill in at least one field to generate a brief.");
-      return;
-    }
-
     setIsGenerating(true);
+    setGeneratedBrief(null);
     const prompt = buildPrompt(formData);
 
     try {
+      // Step 1: Claude (structure generation)
       const claudeRes = await fetch('/.netlify/functions/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,14 +83,21 @@ const VFormatCreativeEngine = () => {
 
       let structured;
       if (claudeJson?.response && typeof claudeJson.response === 'string') {
-        const cleaned = claudeJson.response.replace(/```json\n?|```/g, '').trim();
-        structured = JSON.parse(cleaned);
+        try {
+          const cleaned = claudeJson.response.replace(/```json\n?|```/g, '').trim();
+          structured = JSON.parse(cleaned);
+        } catch (err) {
+          console.error("Claude response could not be parsed:", claudeJson.response);
+          alert("Claude gave an invalid response. Try again.");
+          return;
+        }
       } else {
         console.error("Claude response invalid or undefined:", claudeJson);
-        alert("Claude did not return usable content.");
+        alert("Claude returned no usable data.");
         return;
       }
 
+      // Step 2: GPT (creative generation)
       const gptRes = await fetch('/.netlify/functions/gpt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -98,11 +105,26 @@ const VFormatCreativeEngine = () => {
       });
 
       const gptJson = await gptRes.json();
-      const creativeBrief = JSON.parse(gptJson.response.replace(/```json\n?|```/g, '').trim());
+
+      let creativeBrief;
+      if (gptJson?.response && typeof gptJson.response === 'string') {
+        try {
+          const cleanedGpt = gptJson.response.replace(/```json\n?|```/g, '').trim();
+          creativeBrief = JSON.parse(cleanedGpt);
+        } catch (err) {
+          console.error("GPT response could not be parsed:", gptJson.response);
+          alert("GPT returned an invalid brief. Try again.");
+          return;
+        }
+      } else {
+        console.error("GPT response invalid or undefined:", gptJson);
+        alert("GPT returned no usable data.");
+        return;
+      }
 
       setGeneratedBrief(creativeBrief);
     } catch (err) {
-      console.error(err);
+      console.error("Unexpected error:", err);
       alert("Something went wrong generating your brief.");
     } finally {
       setIsGenerating(false);
@@ -111,25 +133,12 @@ const VFormatCreativeEngine = () => {
 
   const exportToPDF = () => {
     const content = document.querySelector('.space-y-8');
+    if (!content) {
+      alert("Nothing to export.");
+      return;
+    }
     html2pdf().from(content).save('Creative_Brief.pdf');
   };
-
-  const fieldPlaceholders = {
-    streamingTrends: "e.g. Genre surges on Netflix, binge behavior",
-    socialTrends: "e.g. TikTok trends like girl dinner, NPC lives",
-    viralContent: "e.g. Skits, storytimes, surprise endings",
-    genrePerformance: "e.g. Horror and romance outperform on Reels",
-    primaryDemo: "e.g. Gen Z women, urban millennials",
-    ageRange: "e.g. 18–25",
-    platforms: "e.g. TikTok, YouTube Shorts, IG Reels",
-    interests: "e.g. fashion, relationships, astrology",
-    budget: "e.g. $5–10k per episode",
-    timeline: "e.g. 8-week production window",
-    location: "e.g. apartment interiors, city streets",
-    castSize: "e.g. 2–3 core characters"
-  };
-
-  const isFormEmpty = Object.values(formData).every(val => !val || val.length === 0);
 
   const renderForm = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -138,7 +147,6 @@ const VFormatCreativeEngine = () => {
           <label className="text-sm font-semibold mb-1 capitalize">{field.replace(/([A-Z])/g, ' $1')}</label>
           <input
             type="text"
-            placeholder={fieldPlaceholders[field] || ''}
             value={formData[field]}
             onChange={(e) => handleInputChange(field, e.target.value)}
             className="p-2 border rounded"
@@ -147,10 +155,8 @@ const VFormatCreativeEngine = () => {
       ))}
       <button
         onClick={generateCreativeBrief}
-        disabled={isGenerating || isFormEmpty}
-        className={`col-span-full py-2 px-4 rounded mt-4 text-white ${
-          isGenerating || isFormEmpty ? 'bg-gray-400' : 'bg-black hover:bg-gray-800'
-        }`}
+        disabled={isGenerating}
+        className="col-span-full bg-black text-white py-2 px-4 rounded hover:bg-gray-800 mt-4"
       >
         {isGenerating ? 'Generating...' : 'Generate Creative Brief'}
       </button>
