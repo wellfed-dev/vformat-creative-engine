@@ -77,9 +77,15 @@ Respond ONLY with a structured JSON object with these sections.`;
         body: JSON.stringify({ prompt })
       });
 
-      const claudeJson = await claudeRes.json();
-      const structured = JSON.parse(claudeJson.response.replace(/```json\n?|```/g, '').trim());
+if (claudeJson?.response && typeof claudeJson.response === 'string') {
+  const cleaned = claudeJson.response.replace(/```json\n?|```/g, '').trim();
+  structured = JSON.parse(cleaned);
+} else {
+  console.error("Claude response invalid or undefined:", claudeJson);
+  return;
+}
 
+      
       const gptRes = await fetch('/.netlify/functions/gpt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
