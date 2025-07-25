@@ -4,7 +4,6 @@ import html2pdf from 'html2pdf.js';
 
 const VFormatCreativeEngine = () => {
   const [step, setStep] = useState(1);
-  const [model, setModel] = useState('claude');
   const [formData, setFormData] = useState({
     streamingTrends: '',
     socialTrends: '',
@@ -23,14 +22,9 @@ const VFormatCreativeEngine = () => {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: field === 'platforms'
-        ? value.split(',').map(v => v.trim()) // convert back to array
-        : value
-    }));
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
-  
+
   const handlePlatformToggle = (platform) => {
     setFormData(prev => ({
       ...prev,
@@ -75,44 +69,30 @@ Respond ONLY with a structured JSON object with these sections.`;
   const generateCreativeBrief = async () => {
     setIsGenerating(true);
     const prompt = buildPrompt(formData);
+
     try {
-      const response = model === 'claude'
-        ? await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': process.env.REACT_APP_ANTHROPIC_API_KEY
-            },
-            body: JSON.stringify({
-              model: 'claude-sonnet-4-20250514',
-              max_tokens: 3000,
-              messages: [{ role: 'user', content: prompt }]
-            })
-          })
-        : await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`
-            },
-            body: JSON.stringify({
-              model: 'gpt-4o',
-              messages: [{ role: 'user', content: prompt }],
-              max_tokens: 3000,
-              temperature: 0.7
-            })
-          });
+      const claudeRes = await fetch('/.netlify/functions/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
 
-      const data = await response.json();
-      const text = model === 'claude'
-        ? data.content[0].text
-        : data.choices[0].message.content;
+      const claudeJson = await claudeRes.json();
+      const structured = JSON.parse(claudeJson.response.replace(/```json\n?|```/g, '').trim());
 
-      const brief = JSON.parse(text.replace(/```json\n?|```/g, '').trim());
-      setGeneratedBrief(brief);
-    } catch (error) {
-      console.error(error);
-      alert('Brief generation failed. Check your API keys or prompt.');
+      const gptRes = await fetch('/.netlify/functions/gpt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ structured })
+      });
+
+      const gptJson = await gptRes.json();
+      const creativeBrief = JSON.parse(gptJson.response.replace(/```json\n?|```/g, '').trim());
+
+      setGeneratedBrief(creativeBrief);
+    } catch (err) {
+      console.error(err);
+      alert("Something went wrong generating your brief.");
     } finally {
       setIsGenerating(false);
     }
@@ -123,7 +103,7 @@ Respond ONLY with a structured JSON object with these sections.`;
     html2pdf().from(content).save('Creative_Brief.pdf');
   };
 
-  const renderStep1 = () => (
+  const renderForm = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {Object.keys(formData).map((field) => (
         <div key={field} className="flex flex-col">
@@ -146,7 +126,7 @@ Respond ONLY with a structured JSON object with these sections.`;
     </div>
   );
 
-  const renderBriefOutput = () => (
+  const renderOutput = () => (
     <div className="bg-white p-4 border rounded shadow space-y-4">
       <h2 className="text-2xl font-bold">Generated Brief</h2>
       {generatedBrief && Object.entries(generatedBrief).map(([section, content]) => (
@@ -163,13 +143,9 @@ Respond ONLY with a structured JSON object with these sections.`;
     <div className="p-6 space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">V-Format™ Creative Engine</h1>
-        <select onChange={(e) => setModel(e.target.value)} value={model} className="border p-2 rounded">
-          <option value="claude">Claude</option>
-          <option value="gpt">GPT</option>
-        </select>
       </div>
-      {renderStep1()}
-      {generatedBrief && renderBriefOutput()}
+      {renderForm()}
+      {generatedBrief && renderOutput()}
     </div>
   );
 };
