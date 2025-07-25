@@ -1,101 +1,126 @@
 import React, { useState } from 'react';
-import { Loader2, Zap, Sparkles } from 'lucide-react';
+import { Zap, TrendingUp, Users, DollarSign, Play, Download, Sparkles } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 
-const App = () => {
+const VFormatCreativeEngine = () => {
+  const [step, setStep] = useState(1);
+  const [model, setModel] = useState('claude');
   const [formData, setFormData] = useState({
-    trendData: '',
-    targetAudience: '',
-    productionConstraints: '',
+    streamingTrends: '',
+    socialTrends: '',
+    viralContent: '',
+    genrePerformance: '',
+    primaryDemo: '',
+    ageRange: '',
+    platforms: [],
+    interests: '',
+    budget: '',
+    timeline: '',
+    location: '',
+    castSize: ''
   });
-
+  const [generatedBrief, setGeneratedBrief] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [creativeBrief, setCreativeBrief] = useState(null);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const generateBrief = async () => {
+  const handlePlatformToggle = (platform) => {
+    setFormData(prev => ({
+      ...prev,
+      platforms: prev.platforms.includes(platform)
+        ? prev.platforms.filter(p => p !== platform)
+        : [...prev.platforms, platform]
+    }));
+  };
+
+  const buildPrompt = (formData) => `You are the V-Format™ Creative Engine. Use the data below to reverse-engineer a vertical storytelling hit. Create a creative brief structured into the following sections, with clear rationale and insight-backed decisions:
+
+1. OVERVIEW: Logline, genre, tone, hook
+2. STORYLINE: Narrative world, conflict, emotional driver
+3. SERIES MAP: 10-episode arc, cliffhanger strategy, IP expansion path
+4. PERFORMANCE ARCHETYPES: Story mechanics and character arcs based on trending content
+5. TARGETING STRATEGY: Affinity demos, platform behavior, competitive whitespace
+6. MONETIZATION: Unlock points, merch potential, brand collab opportunities
+7. MARKETING: Viral triggers, shareable moments, audio/visual cues
+8. PRODUCTION: Timeline, cast, setting, budget tiering
+9. IP SCORECARD: Completion rate forecast, unlock rate, merchability, brand alignment, and greenlight rating
+
+TREND INPUTS:
+- Streaming Trends: ${formData.streamingTrends || 'Not specified'}
+- Social Trends: ${formData.socialTrends || 'Not specified'}
+- Viral Content: ${formData.viralContent || 'Not specified'}
+- Genre Performance: ${formData.genrePerformance || 'Not specified'}
+
+TARGET AUDIENCE:
+- Demographic: ${formData.primaryDemo || 'Not specified'}
+- Age Range: ${formData.ageRange || 'Not specified'}
+- Platforms: ${formData.platforms.join(', ') || 'Not specified'}
+- Interests: ${formData.interests || 'Not specified'}
+
+PRODUCTION:
+- Budget: ${formData.budget || 'Not specified'}
+- Timeline: ${formData.timeline || 'Not specified'}
+- Location: ${formData.location || 'Not specified'}
+- Cast Size: ${formData.castSize || 'Not specified'}
+
+Respond ONLY with a structured JSON object with these sections.`;
+
+  const generateCreativeBrief = async () => {
     setIsGenerating(true);
+    const prompt = buildPrompt(formData);
     try {
-      const response = await fetch('/.netlify/functions/generateBrief', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      const response = model === 'claude'
+        ? await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': process.env.REACT_APP_ANTHROPIC_API_KEY
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 3000,
+              messages: [{ role: 'user', content: prompt }]
+            })
+          })
+        : await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o',
+              messages: [{ role: 'user', content: prompt }],
+              max_tokens: 3000,
+              temperature: 0.7
+            })
+          });
+
       const data = await response.json();
-      setCreativeBrief(data.brief);
+      const text = model === 'claude'
+        ? data.content[0].text
+        : data.choices[0].message.content;
+
+      const brief = JSON.parse(text.replace(/```json\n?|```/g, '').trim());
+      setGeneratedBrief(brief);
     } catch (error) {
-      console.error('Brief generation failed:', error);
-      alert('Something went wrong. Try again later.');
+      console.error(error);
+      alert('Brief generation failed. Check your API keys or prompt.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  return (
-    <div className="max-w-4xl mx-auto p-6 font-sans">
-      <h1 className="text-3xl font-bold mb-6 flex items-center gap-2">
-        <Sparkles className="text-purple-600" /> V-Format™ Creative Engine
-      </h1>
+  const exportToPDF = () => {
+    const content = document.querySelector('.space-y-8');
+    html2pdf().from(content).save('Creative_Brief.pdf');
+  };
 
-      <div className="space-y-4">
-        <div>
-          <label className="block font-semibold">1. Trend Data</label>
-          <textarea
-            name="trendData"
-            value={formData.trendData}
-            onChange={handleChange}
-            rows="4"
-            placeholder="e.g., Dark academia, secret societies, K-thrillers, TikTok hashtag trends..."
-            className="w-full p-3 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        <div>
-          <label className="block font-semibold">2. Target Audience</label>
-          <textarea
-            name="targetAudience"
-            value={formData.targetAudience}
-            onChange={handleChange}
-            rows="3"
-            placeholder="e.g., Women 18–25, TikTok-first, loves suspense and romance..."
-            className="w-full p-3 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        <div>
-          <label className="block font-semibold">3. Production Constraints</label>
-          <textarea
-            name="productionConstraints"
-            value={formData.productionConstraints}
-            onChange={handleChange}
-            rows="3"
-            placeholder="e.g., $200K budget, 8-week timeline, 4-character cast, single-location..."
-            className="w-full p-3 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        <button
-          onClick={generateBrief}
-          disabled={isGenerating}
-          className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-md transition"
-        >
-          {isGenerating ? <Loader2 className="animate-spin" /> : <Zap />}
-          {isGenerating ? 'Generating...' : 'Generate Creative Brief'}
-        </button>
-      </div>
-
-      {creativeBrief && (
-        <div className="mt-10 border-t pt-6">
-          <h2 className="text-2xl font-semibold mb-4">🎬 Your Creative Brief</h2>
-          <pre className="bg-gray-100 p-4 whitespace-pre-wrap rounded-md text-sm overflow-x-auto">
-            {creativeBrief}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
+  // ... keep the rest of your existing app structure, including renderStep1, renderStep2, etc.
+  // Insert model selector into UI where needed:
+  // <select onChange={(e) => setModel(e.target.value)} value={model}>...</select>
 };
 
-export default App;
+export default VFormatCreativeEngine;
